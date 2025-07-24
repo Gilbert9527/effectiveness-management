@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>研发效能管理平台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="logo">贝壳集团</div>
+        <ul class="nav-links">
+            <li><a href="/">效能管理</a></li>
+            <li><a href="/quality">质量管理</a></li>
+            <li><a href="/settings">设置管理</a></li>
+            <!-- 确保已删除或注释掉此行 -->
+            <!-- <li><a href="/dashboard">效能数据大屏</a></li> -->
+        </ul>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="content">
+        <!-- 智能体入口 -->
+        <a href="/effectiveness-report" class="ai-assistant-link">
+            <div class="ai-assistant">
+                <div class="ai-logo">
+                    <!-- AI助手SVG图标 -->
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="20" cy="20" r="18" fill="#1a73e8"/>
+                        <path d="M15 20H25M15 25H21" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="20" cy="15" r="2" fill="white"/>
+                    </svg>
+                </div>
+                <div class="ai-description">AI小助手</div>
+            </div>
+        </a>
+
+        <!-- 筛选条件区域 -->
+        <div class="filter-container">
+            <form class="filter-form">
+                <!-- 时间筛选 -->
+                <div class="filter-group">
+                    <label>时间筛选:</label>
+                    <div class="time-filter">
+                        <div class="radio-group">
+                            <input type="radio" id="time-point" name="time-type" value="point" checked>
+                            <label for="time-point">时间点</label>
+                        </div>
+                        <div class="radio-group">
+                            <input type="radio" id="time-range" name="time-type" value="range">
+                            <label for="time-range">时间段</label>
+                        </div>
+                        <div id="point-container">
+                            <input type="date" id="time-point-input" name="time-point">
+                        </div>
+                        <div id="range-container" class="hidden">
+                            <input type="date" id="start-date" name="start-date" placeholder="开始日期">
+                            <span class="range-separator">至</span>
+                            <input type="date" id="end-date" name="end-date" placeholder="结束日期">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 人员名称 -->
+                <div class="filter-group">
+                    <label for="person-name">人员名称:</label>
+                    <input type="text" id="person-name" name="person-name" placeholder="输入人员名称">
+                </div>
+
+                <!-- 职位筛选下拉框 -->
+                <div class="filter-group">
+                    <label for="position">职位:</label>
+                    <!-- 移除multiple和size属性，恢复为单选 -->
+                    <select id="position" name="position">
+                        <option value="all">全部职位</option>
+                    </select>
+                </div>
+
+                <!-- 修改JavaScript部分 -->
+                <script>
+                    // 修改筛选表单提交事件处理
+                    document.querySelector('.filter-form').addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        
+                        // 获取单个选中的职位
+                        const positionSelect = document.getElementById('position');
+                        const selectedPosition = positionSelect.value;
+                        
+                        const filters = {
+                            personName: document.getElementById('person-name').value.trim(),
+                            positionName: selectedPosition !== 'all' ? selectedPosition : '', // 恢复单职位参数
+                            projectName: document.getElementById('project-name').value
+                        };
+                        loadSaturationData(filters);
+                    });
+                    
+                    // 修改加载饱和度数据函数
+                    function loadSaturationData(filters = {}) {
+                        // 构建查询参数
+                        const params = new URLSearchParams();
+                        if (filters.personName) params.append('person_name', filters.personName);
+                        
+                        // 添加时间筛选参数
+                        const timeType = document.querySelector('input[name="time-type"]:checked').value;
+                        if (timeType === 'point') {
+                            const timePoint = document.getElementById('time-point-input').value;
+                            if (timePoint) params.append('time_point', timePoint);
+                        } else {
+                            const startDate = document.getElementById('start-date').value;
+                            const endDate = document.getElementById('end-date').value;
+                            if (startDate) params.append('start_date', startDate);
+                            if (endDate) params.append('end_date', endDate);
+                        }
+                        
+                        // 修复职位参数名
+                        if (filters.positions && filters.positions.length > 0) {
+                            filters.positions.forEach(pos => {
+                                params.append('position_id', pos); // 确保参数名是position_id
+                            });
+                        }
+                        
+                        if (filters.projectName && filters.projectName !== 'all') {
+                            params.append('project_name', filters.projectName);
+                        }
+                        
+                        const url = `/api/saturation-data?${params.toString()}`;
+                        console.log('请求URL:', url); // 添加调试日志
+                        
+                        fetch(url)
+                            .then(response => {
+                                if (!response.ok) throw new Error(`HTTP错误: ${response.status}`);
+                                return response.json();
+                            })
+                            .then(data => {
+                                const tableBody = document.getElementById('saturation-table-body');
+                                tableBody.innerHTML = '';
+
+                                if (!data.length) {
+                                    tableBody.innerHTML = '<tr><td colspan="9">没有找到数据</td></tr>';
+                                    return;
+                                }
+
+                                data.forEach(item => {
+                                    // 修复数值类型转换问题
+                                    const saturation = parseFloat(item.saturation);
+                                    const codeEquivalent = parseFloat(item.code_equivalent);
+                                    const scheduledHours = parseFloat(item.scheduled_hours);
+                                    const aiActiveDays = parseFloat(item.ai_active_days);
+
+                                    const row = document.createElement('tr');
+                                    row.innerHTML = `
+                                        <td>${item.statistical_period || ''}</td> <!-- 修复：字段名从statisticalPeriod改为statistical_period -->
+                                        <td>${item.user_name || ''}</td> <!-- 修复：字段名从userName改为user_name -->
+                                        <td>${item.position_name || ''}</td> <!-- 修复：字段名从positionName改为position_name -->
+                                        <td>${item.project_name || ''}</td> <!-- 修复：字段名从projectName改为project_name -->
+                                        <td>${!isNaN(saturation) ? saturation.toFixed(2) : ''}</td>
+                                        <td>${!isNaN(codeEquivalent) ? codeEquivalent.toFixed(2) : ''}</td>
+                                        <td>${item.delivery_count || ''}</td> <!-- 修复：字段名从deliveryCount改为delivery_count -->
+                                        <td>${!isNaN(scheduledHours) ? scheduledHours.toFixed(2) : ''}</td>
+                                        <td>${!isNaN(aiActiveDays) ? aiActiveDays.toFixed(1) : ''}</td>
+                                    `;
+                                    tableBody.appendChild(row);
+                                });
+                            })
+                            .catch(error => {
+                                console.error('加载数据失败:', error);
+                                document.getElementById('saturation-table-body').innerHTML = 
+                                    `<tr><td colspan="9">加载失败: ${error.message}</td></tr>`;
+                            });
+                    }
+                </script>
+                
+                <!-- 项目名称 -->
+                <div class="filter-group">
+                    <label for="project-name">项目名称:</label>
+                    <select id="project-name" name="project-name">
+                        <option value="all">全部项目</option>
+                    </select>
+                </div>
+
+                <!-- 筛选按钮 -->
+                <div class="filter-actions">
+                    <button type="submit" class="btn filter-btn">筛选</button>
+                    <button type="reset" class="btn reset-btn">重置</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 数据列表区域 -->
+        <div class="data-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>筛选周期</th>
+                        <th>人员名称</th>
+                        <th>职位名称</th>
+                        <th>项目名称</th>
+                        <th>饱和度</th>
+                        <th>代码当量</th>
+                        <th>交付需求数</th>
+                        <th>总工时</th>
+                        <th>AI使用人天</th>
+                    </tr>
+                </thead>
+                <tbody id="saturation-table-body">
+                   
+                </tbody>
+            </table>
+
+            <!-- 分页控件 -->
+            <div class="pagination">
+                <div class="page-size">
+                    <span>每页显示:</span>
+                    <select id="page-size-select">
+                        <option value="10">10条</option>
+                        <option value="20" selected>20条</option>
+                        <option value="50">50条</option>
+                    </select>
+                </div>
+                <div class="page-controls">
+                    <button class="page-btn prev-btn" disabled>上一页</button>
+                    <span class="page-info">第 <span class="current-page">1</span> 页，共 <span class="total-pages">1</span> 页</span>
+                    <button class="page-btn next-btn" disabled>下一页</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 时间筛选类型切换逻辑
+        document.querySelectorAll('input[name="time-type"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const pointContainer = document.getElementById('point-container');
+                const rangeContainer = document.getElementById('range-container');
+                
+                if (this.value === 'point') {
+                    pointContainer.classList.remove('hidden');
+                    rangeContainer.classList.add('hidden');
+                } else {
+                    pointContainer.classList.add('hidden');
+                    rangeContainer.classList.remove('hidden');
+                }
+            });
+        });
+    
+        // 页面加载时获取职位、项目和饱和度数据
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPositions();
+            loadProjects();
+            loadSaturationData();
+            
+            // 启用筛选表单提交事件监听器
+            document.querySelector('.filter-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // 获取选中的所有职位（支持多选）
+                const positionSelect = document.getElementById('position');
+                const selectedPositions = Array.from(positionSelect.selectedOptions)
+                    .map(option => option.value)
+                    .filter(value => value !== 'all'); // 排除"全部"选项
+                
+                const filters = {
+                    personName: document.getElementById('person-name').value.trim(),
+                    positions: selectedPositions, // 传递职位数组
+                    projectName: document.getElementById('project-name').value
+                };
+                loadSaturationData(filters);
+            });
+            
+            // 修改加载饱和度数据函数
+            function loadSaturationData(filters = {}) {
+                // 构建查询参数
+                const params = new URLSearchParams();
+                if (filters.personName) params.append('person_name', filters.personName);
+                
+                // 添加时间筛选参数
+                const timeType = document.querySelector('input[name="time-type"]:checked').value;
+                if (timeType === 'point') {
+                    const timePoint = document.getElementById('time-point-input').value;
+                    if (timePoint) params.append('time_point', timePoint);
+                } else {
+                    const startDate = document.getElementById('start-date').value;
+                    const endDate = document.getElementById('end-date').value;
+                    if (startDate) params.append('start_date', startDate);
+                    if (endDate) params.append('end_date', endDate);
+                }
+                
+                // 添加多个职位参数
+                if (filters.positions && filters.positions.length > 0) {
+                    filters.positions.forEach(pos => {
+                        params.append('position_id', pos); // 确保参数名是position_id
+                    });
+                }
+                // 添加时间筛选参数
+                const timeTypeElement = document.querySelector('input[name="time-type"]:checked');
+                if (!timeTypeElement) {
+                    console.error('未找到选中的时间筛选类型');
+                    // 默认使用时间点筛选
+                    params.append('time_type', 'point');
+                } else {
+                    const timeType = timeTypeElement.value;
+                    if (timeType === 'point') {
+                        const timePoint = document.getElementById('time-point-input').value;
+                        if (timePoint) params.append('time_point', timePoint);
+                    } else {
+                        const startDate = document.getElementById('start-date').value;
+                        const endDate = document.getElementById('end-date').value;
+                        if (startDate) params.append('start_date', startDate);
+                        if (endDate) params.append('end_date', endDate);
+                    }
+                }
+                
+                if (filters.projectName && filters.projectName !== 'all') {
+                    params.append('project_name', filters.projectName);
+                }
+                
+                const url = `/api/saturation-data?${params.toString()}`;
+                console.log('API请求参数:', params.toString()); // 添加此行
+                
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) throw new Error(`HTTP错误: ${response.status}`);
+                        return response.json();
+                    })
+                    .then(data => {
+                        const tableBody = document.getElementById('saturation-table-body');
+                        tableBody.innerHTML = '';
+
+                        if (!data.length) {
+                            tableBody.innerHTML = '<tr><td colspan="9">没有找到数据</td></tr>';
+                            return;
+                        }
+
+                        data.forEach(item => {
+                            // 修复数值类型转换问题
+                            const saturation = parseFloat(item.saturation);
+                            const codeEquivalent = parseFloat(item.code_equivalent); // 修复：字段名从codeEquivalent改为code_equivalent
+                            const scheduledHours = parseFloat(item.scheduled_hours); // 修复：字段名从scheduledHours改为scheduled_hours
+                            const aiActiveDays = parseFloat(item.ai_active_days); // 修复：字段名从aiActiveDays改为ai_active_days
+
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${item.statistical_period || ''}</td> <!-- 修复：字段名从statisticalPeriod改为statistical_period -->
+                                <td>${item.user_name || ''}</td> <!-- 修复：字段名从userName改为user_name -->
+                                <td>${item.position_name || ''}</td> <!-- 修复：字段名从positionName改为position_name -->
+                                <td>${item.project_name || ''}</td> <!-- 修复：字段名从projectName改为project_name -->
+                                <td>${!isNaN(saturation) ? saturation.toFixed(2) : ''}</td>
+                                <td>${!isNaN(codeEquivalent) ? codeEquivalent.toFixed(2) : ''}</td>
+                                <td>${item.delivery_count || ''}</td> <!-- 修复：字段名从deliveryCount改为delivery_count -->
+                                <td>${!isNaN(scheduledHours) ? scheduledHours.toFixed(2) : ''}</td>
+                                <td>${!isNaN(aiActiveDays) ? aiActiveDays.toFixed(1) : ''}</td>
+                            `;
+                            tableBody.appendChild(row);
+                        });
+                    })
+                    .catch(error => {
+                        console.error('加载数据失败:', error);
+                        document.getElementById('saturation-table-body').innerHTML = 
+                            `<tr><td colspan="9">加载失败: ${error.message}</td></tr>`;
+                    });
+            }
+        });
+    
+        // 加载职位数据到筛选下拉框
+        function loadPositions() {
+            fetch('/api/positions')
+                .then(response => response.json())
+                .then(positions => {
+                    const positionSelect = document.getElementById('position');
+                    positionSelect.innerHTML = '<option value="all">全部职位</option>';
+                    positions.forEach(position => {
+                        const option = document.createElement('option');
+                        option.value = position.id; // 修复：使用ID作为值
+                        option.textContent = position.name;
+                        positionSelect.appendChild(option);
+                    });
+                });
+        }
+    
+        // 加载项目数据到筛选下拉框
+        function loadProjects() {
+            fetch('/api/projects')
+                .then(response => response.json())
+                .then(projects => {
+                    const projectSelect = document.getElementById('project-name');
+                    projectSelect.innerHTML = '<option value="all">全部项目</option>';
+                    projects.forEach(project => {
+                        const option = document.createElement('option');
+                        option.value = project.name; // 使用名称作为值
+                        option.textContent = project.name;
+                        projectSelect.appendChild(option);
+                    });
+                });
+        }
+    </script>
+</body>
+</html>

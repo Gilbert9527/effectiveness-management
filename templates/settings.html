@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设置管理 - 研发效能管理平台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="logo">贝壳集团</div>
+        <ul class="nav-links">
+            <li><a href="/">效能管理</a></li>
+            <li><a href="/quality">质量管理</a></li>
+            <li><a href="/settings" class="active">设置管理</a></li>
+        </ul>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="content settings-content">
+        <!-- 功能区域容器 -->
+        <div class="settings-layout">
+            <!-- 职位管理和项目管理区域 -->
+            <div class="settings-top-section">
+                <!-- 职位管理 -->
+                <div class="settings-card">
+                    <h3>职位管理</h3>
+                    <div class="form-group">
+                        <input type="text" id="position-name" placeholder="输入职位名称" class="form-control">
+                        <button id="add-position" class="btn btn-primary mt-2">新增职位</button>
+                    </div>
+                    <div class="table-container mt-3">
+                        <table class="data-table" id="position-table">
+                            <thead>
+                                <tr>
+                                    <th>职位名称</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 项目管理 -->
+                <div class="settings-card">
+                    <h3>项目管理</h3>
+                    <div class="form-group">
+                        <input type="text" id="project-name" placeholder="输入项目名称" class="form-control">
+                        <button id="add-project" class="btn btn-primary mt-2">新增项目</button>
+                    </div>
+                    <div class="table-container mt-3">
+                        <table class="data-table" id="project-table">
+                            <thead>
+                                <tr>
+                                    <th>项目名称</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 关联关系管理 -->
+            <!-- 删除整个关联关系管理部分 -->
+            <div class="settings-bottom-section">
+                <div class="settings-card full-width">
+                    <h3>关联关系管理</h3>
+                    <div class="form-group">
+                        <label for="relationship-upload">上传关联关系Excel</label>
+                        <input type="file" id="relationship-upload" accept=".xlsx, .xls" class="form-control">
+                        <small class="form-text">Excel需包含: 人员名称、项目名称、职位名称字段</small>
+                        <button id="upload-relationship" class="btn btn-primary mt-2">上传</button>
+                    </div>
+                    <div class="table-container mt-3">
+                        <h4>上传记录</h4>
+                        <!-- 关联关系管理表格表头 -->
+                        <table class="data-table" id="upload-table">
+                            <thead>
+                                <tr>
+                                    <th>人员名称</th>
+                                    <th>项目名称</th>
+                                    <th>职位名称</th>
+                                    <th>文件名</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                        
+                        <!-- JavaScript数据渲染部分 -->
+                        <script>
+                        function loadUploadRecords() {
+                            // 修改为新的API路由
+                            fetch('/api/relationship-uploads')
+                                .then(response => response.json())
+                                .then(data => {
+                                    const tableBody = document.querySelector('#upload-table tbody');
+                                    tableBody.innerHTML = '';
+                                    // 添加数据存在性检查
+                                    if (data.length === 0) {
+                                        const row = document.createElement('tr');
+                                        row.innerHTML = '<td colspan="5" style="text-align:center;">暂无数据</td>';
+                                        tableBody.appendChild(row);
+                                        return;
+                                    }
+                                    data.forEach(record => {
+                                        const row = document.createElement('tr');
+                                        row.innerHTML = `
+                                            <td>${record.person_name || '-'}</td>
+                                            <td>${record.project_name || '-'}</td>
+                                            <td>${record.position_name || '-'}</td>
+                                            <td>${record.file_name || '-'}</td>
+                                            <td><a href="/api/download/${record.id}" class="download-link">下载</a></td>
+                                        `;
+                                        tableBody.appendChild(row);
+                                    });
+                                })
+                                // 添加错误处理
+                                .catch(error => {
+                                    console.error('加载数据失败:', error);
+                                    const tableBody = document.querySelector('#upload-table tbody');
+                                    tableBody.innerHTML = '<td colspan="5" style="text-align:center;color:red;">数据加载失败</td>';
+                                });
+                        }
+                        </script>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 饱和度管理 -->
+            <div class="settings-bottom-section">
+                <div class="settings-card full-width">
+                    <h3>饱和度管理</h3>
+                    <div class="form-group">
+                        <label for="saturation-upload">上传饱和度Excel</label>
+                        <input type="file" id="saturation-upload" accept=".xlsx, .xls" class="form-control">
+                        <small class="form-text">Excel需包含: 人员名称、项目名称、职位名称、代码当量、饱和度、交付次数、计划工时、AI活跃天数、统计周期字段</small>
+                        <button id="upload-saturation" class="btn btn-primary mt-2">上传</button>
+                    </div>
+                    <div class="table-container mt-3">
+                        <h4>上传记录</h4>
+                        <table class="data-table" id="saturation-table">
+                            <thead>
+                                <tr>
+                                    <th>上传时间</th>
+                                    <th>文件名称</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 页面加载时获取数据
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPositions();
+            loadProjects();
+            loadUploadRecords();
+            loadSaturationRecords(); // 添加饱和度记录加载
+
+            // 新增职位
+            document.getElementById('add-position').addEventListener('click', function() {
+                const positionName = document.getElementById('position-name').value.trim();
+                if (positionName) {
+                    addPosition(positionName);
+                }
+            });
+
+            // 新增项目
+            document.getElementById('add-project').addEventListener('click', function() {
+                const projectName = document.getElementById('project-name').value.trim();
+                if (projectName) {
+                    addProject(projectName);
+                }
+            });
+
+            // 上传文件
+            document.getElementById('upload-relationship').addEventListener('click', function() {
+                const fileInput = document.getElementById('relationship-upload');
+                if (fileInput.files.length > 0) {
+                    uploadFile(fileInput.files[0]);
+                }
+            });
+        });
+
+        // 职位管理API调用
+        function loadPositions() {
+            fetch('/api/positions')
+                .then(response => response.json())
+                .then(data => renderTable('position-table', data, deletePosition));
+        }
+
+        function addPosition(name) {
+            fetch('/api/positions', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: name})
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(() => {
+                loadPositions();
+                document.getElementById('position-name').value = ''; // 清空输入框
+                alert('职位添加成功');
+            })
+            .catch(error => {
+                alert(error.message || '添加失败，请重试');
+            });
+        }
+
+        function addProject(name) {
+            fetch('/api/projects', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: name})
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(() => {
+                loadProjects();
+                document.getElementById('project-name').value = ''; // 清空输入框
+                alert('项目添加成功');
+            })
+            .catch(error => {
+                alert(error.message || '添加失败，请重试');
+            });
+        }
+
+        function deletePosition(id) {
+            fetch(`/api/positions/${id}`, {method: 'DELETE'})
+                .then(() => loadPositions());
+        }
+
+        // 项目管理API调用
+        function loadProjects() {
+            fetch('/api/projects')
+                .then(response => response.json())
+                .then(data => renderTable('project-table', data, deleteProject));
+        }
+
+        function deleteProject(id) {
+            fetch(`/api/projects/${id}`, {method: 'DELETE'})
+                .then(() => loadProjects());
+        }
+
+        // 文件上传API调用
+        function loadUploadRecords() {
+            fetch('/api/uploads')
+                .then(response => response.json())
+                .then(data => {
+                    const tableBody = document.querySelector('#upload-table tbody');
+                    tableBody.innerHTML = '';
+                    data.forEach(record => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${record.person_name}</td>
+                            <td>${record.project_name}</td>
+                            <td>${record.position_name}</td>
+                            <td>${record.file_name}</td>
+                            <td><a href="/api/download/${record.id}" class="download-link">下载</a></td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                });
+        }
+
+        // 文件上传错误处理
+        function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(() => {
+                loadUploadRecords(); // 上传成功后重新加载数据
+                document.getElementById('relationship-upload').value = '';
+                alert('上传成功');
+            })
+            .catch(error => {
+                alert(error.message || '数据有误，请检查Excel格式和字段是否正确');
+            });
+        }
+
+        // 饱和度管理API调用
+        function loadSaturationRecords() {
+            fetch('/api/saturation-uploads')
+                .then(response => response.json())
+                .then(data => {
+                    const tableBody = document.querySelector('#saturation-table tbody');
+                    tableBody.innerHTML = '';
+                    data.forEach(record => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${record.upload_date}</td>
+                            <td>${record.file_name}</td>
+                            <td>
+                                <a href="/api/saturation-download/${record.id}" class="download-link">下载</a>
+                                <button onclick="deleteSaturationFile('${record.id}')" class="btn btn-danger btn-sm ml-2">删除</button>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                });
+        }
+
+        function uploadSaturationFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/api/saturation-upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(() => {
+                loadSaturationRecords();
+                document.getElementById('saturation-upload').value = '';
+                alert('上传成功');
+            })
+            .catch(error => {
+                alert(error.message || '上传失败，请重试');
+            });
+        }
+
+        function deleteSaturationFile(id) {
+            if (confirm('确定要删除此文件吗？')) {
+                fetch(`/api/saturation-delete/${id}`, {
+                    method: 'DELETE'
+                })
+                .then(() => {
+                    loadSaturationRecords();
+                })
+                .catch(error => {
+                    alert('删除失败，请重试');
+                });
+            }
+        }
+
+        // 添加饱和度上传按钮事件监听
+        document.getElementById('upload-saturation').addEventListener('click', function() {
+            const fileInput = document.getElementById('saturation-upload');
+            if (fileInput.files.length > 0) {
+                uploadSaturationFile(fileInput.files[0]);
+            }
+        });
+        // 通用表格渲染函数
+        function renderTable(tableId, data, deleteCallback) {
+            const tableBody = document.querySelector(`#${tableId} tbody`);
+            tableBody.innerHTML = '';
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.name}</td>
+                    <td><button onclick="${deleteCallback.name}(${item.id})" class="btn btn-danger btn-sm">删除</button></td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+    </script>
+</body>
+</html>
+<!-- 删除关联关系相关JavaScript -->
+<script>
+function loadUploadRecords() {
+    // ... 全部代码 ...
+}
+
+function uploadFile(file) {
+    // ... 全部代码 ...
+}
+</script>

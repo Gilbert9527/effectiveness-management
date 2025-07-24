@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>研发效能管理平台</title>  <!-- 修改此行，移除"质量管理 - " -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="logo">贝壳集团</div>
+        <ul class="nav-links">
+            <li><a href="/">效能管理</a></li>
+            <li><a href="/quality" class="active">质量管理</a></li>
+            <li><a href="/settings">设置管理</a></li>
+        </ul>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="content">
+        <!-- 删除此行: <h1>质量管理</h1> -->
+
+        <!-- 时间筛选区域 -->
+        <div class="filter-container">
+            <form class="filter-form" id="quality-filter-form">
+                <div class="filter-group">
+                    <label>时间筛选:</label>
+                    <div class="time-filter">
+                        <div class="radio-group">
+                            <input type="radio" id="time-point" name="time-type" value="point" checked>
+                            <label for="time-point">时间点</label>
+                        </div>
+                        <div class="radio-group">
+                            <input type="radio" id="time-range" name="time-type" value="range">
+                            <label for="time-range">时间段</label>
+                        </div>
+                        <div id="point-container">
+                            <input type="date" id="time-point-input" name="time-point" value="2023-10-31">
+                        </div>
+                        <div id="range-container" class="hidden">
+                            <input type="date" id="start-date" name="start-date" value="2023-10-01">
+                            <span class="range-separator">至</span>
+                            <input type="date" id="end-date" name="end-date" value="2023-10-31">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="filter-actions">
+                    <button type="submit" class="btn filter-btn">筛选</button>
+                    <button type="reset" class="btn reset-btn">重置</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 汇总数据卡片区域 -->
+        <div class="summary-cards">
+            <div class="summary-card">
+                <div class="card-title">缺陷数量</div>
+                <div class="card-value"></div>
+            </div>
+            <div class="summary-card">
+                <div class="card-title">有效缺陷数</div>
+                <div class="card-value"></div>
+            </div>
+            <div class="summary-card">
+                <div class="card-title">P0级别缺陷</div>
+                <div class="card-value"></div>
+            </div>
+            <div class="summary-card">
+                <div class="card-title">线上缺陷漏出率</div>
+                <div class="card-value"></div>
+            </div>
+            <div class="summary-card">
+                <div class="card-title">showcase成功率</div>
+                <div class="card-value"></div>
+            </div>
+            <div class="summary-card">
+                <div class="card-title">reopen率</div>
+                <div class="card-value"></div>
+            </div>
+        </div>
+
+        <!-- 测试人员列表区域 -->
+        <div class="data-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>测试人员名称</th>
+                        <th>待测试</th>
+                        <th>测试中</th>
+                        <th>测试完成</th>
+                        <th>Keones已提缺陷数</th>
+                        <th>Keones未提缺陷原因</th>
+                    </tr>
+                </thead>
+                <tbody id="testers-table-body">
+                    <!-- 数据将通过JavaScript动态生成 -->
+                </tbody>
+            </table>
+
+            <!-- 分页控件 -->
+            <div class="pagination">
+                <div class="page-size">
+                    <span>每页显示:</span>
+                    <select id="page-size-select">
+                        <option value="10">10条</option>
+                        <option value="20" selected>20条</option>
+                        <option value="50">50条</option>
+                    </select>
+                </div>
+                <div class="page-controls">
+                    <button class="page-btn prev-btn" disabled>上一页</button>
+                    <span class="page-info">第 <span class="current-page">1</span> 页，共 <span class="total-pages">1</span> 页</span>
+                    <button class="page-btn next-btn" disabled>下一页</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 时间筛选类型切换逻辑
+        document.querySelectorAll('input[name="time-type"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const pointContainer = document.getElementById('point-container');
+                const rangeContainer = document.getElementById('range-container');
+                
+                if (this.value === 'point') {
+                    pointContainer.classList.remove('hidden');
+                    rangeContainer.classList.add('hidden');
+                } else {
+                    pointContainer.classList.add('hidden');
+                    rangeContainer.classList.remove('hidden');
+                }
+            });
+        });
+
+        // 模拟测试人员数据
+        const testersData = [];
+
+        // 渲染测试人员列表
+        function renderTestersTable() {
+            const tableBody = document.getElementById('testers-table-body');
+            tableBody.innerHTML = '';
+
+            testersData.forEach(tester => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${tester.name}</td>
+                    <td>${tester.pending}</td>
+                    <td>${tester.testing}</td>
+                    <td>${tester.completed}</td>
+                    <td>${tester.defectsReported}</td>
+                    <td>${tester.unreportedReason}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // 页面加载时渲染表格
+        document.addEventListener('DOMContentLoaded', renderTestersTable);
+    </script>
+</body>
+</html>

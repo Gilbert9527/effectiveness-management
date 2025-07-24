@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>效能分析智能体</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="logo">贝壳集团</div>
+        <ul class="nav-links">
+            <li><a href="/">效能管理</a></li>
+            <li><a href="/quality">质量管理</a></li>
+            <li><a href="/settings">设置管理</a></li>
+        </ul>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="agent-content">
+        <div class="agent-header">
+            <div class="agent-icon">
+                <svg width="50" height="50" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="20" cy="20" r="18" fill="#1a73e8"/>
+                    <path d="M15 20H25M15 25H21" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    <circle cx="20" cy="15" r="2" fill="white"/>
+                </svg>
+            </div>
+            <h1>效能分析智能体</h1>
+            <p>上传Excel文件，获取智能分析报告</p>
+        </div>
+
+        <!-- 文件上传区域 -->
+        <div class="upload-container">
+            <div class="upload-box">
+                <input type="file" id="file-upload" accept=".xlsx, .xls" hidden>
+                <label for="file-upload" class="upload-label">
+                    <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 5V19M5 12L12 5L19 12" stroke="#1a73e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <p>点击或拖拽文件到此处上传</p>
+                    <p class="file-format">支持 .xlsx, .xls 格式</p>
+                </label>
+                <div id="file-info" class="hidden"></div>
+            </div>
+            <button id="analyze-btn" class="btn primary-btn hidden">开始分析</button>
+        </div>
+
+        <!-- 分析结果区域 -->
+        <div id="result-container" class="result-container hidden">
+            <div class="loading hidden">
+                <div class="spinner"></div>
+                <p>正在分析文件内容，请稍候...</p>
+            </div>
+            <div id="report-content" class="report-content"></div>
+        </div>
+    </main>
+
+    <script>
+        // 文件上传处理
+        const fileUpload = document.getElementById('file-upload');
+        const fileInfo = document.getElementById('file-info');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const resultContainer = document.getElementById('result-container');
+        const loading = document.querySelector('.loading');
+        const reportContent = document.getElementById('report-content');
+
+        fileUpload.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                fileInfo.textContent = `已选择: ${file.name}`;
+                fileInfo.classList.remove('hidden');
+                analyzeBtn.classList.remove('hidden');
+            }
+        });
+
+        // 拖拽功能
+        const uploadLabel = document.querySelector('.upload-label');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadLabel.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadLabel.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadLabel.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            uploadLabel.classList.add('highlight');
+        }
+
+        function unhighlight() {
+            uploadLabel.classList.remove('highlight');
+        }
+
+        uploadLabel.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const file = dt.files[0];
+            if (file) {
+                fileUpload.files = dt.files;
+                fileInfo.textContent = `已选择: ${file.name}`;
+                fileInfo.classList.remove('hidden');
+                analyzeBtn.classList.remove('hidden');
+            }
+        }
+
+        // 分析按钮点击事件
+        analyzeBtn.addEventListener('click', function() {
+            const file = fileUpload.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // 显示加载状态
+            resultContainer.classList.remove('hidden');
+            loading.classList.remove('hidden');
+            reportContent.innerHTML = '';
+
+            // 发送文件到后端分析
+            fetch('/api/analyze-excel', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                loading.classList.add('hidden');
+                if (data.error) {
+                    reportContent.innerHTML = `<div class="error-message">${data.error}</div>`;
+                    return;
+                }
+
+                // 创建报告头部
+                const reportHeader = `
+                    <div class="report-section">
+                        <h2>效能分析报告</h2>
+                        <p><strong>文件名:</strong> ${data.filename}</p>
+                        <p><strong>分析日期:</strong> ${data.analysis_date}</p>
+                        <p><strong>数据量:</strong> ${data.record_count} 条记录</p>
+                    </div>
+                    <div class="report-section">
+                        <h3>分析结论</h3>
+                        <p>1. 饱和度最高的人员: ${data.top_saturation.person} (${data.top_saturation.value}%)</p>
+                        <p>2. 需求交付最多的人员: ${data.top_delivery.person} (${data.top_delivery.value}个)</p>
+                        <p>3. 代码当量最高的人员: ${data.top_code.person} (${data.top_code.value})</p>
+                    </div>
+                `;
+                reportContent.innerHTML = reportHeader;
+
+                // 创建图表容器
+                const chartContainers = `
+                    <div class="chart-container">
+                        <h3>饱和度柱状图</h3>
+                        <div id="saturation-chart" style="width: 100%; height: 400px;"></div>
+                    </div>
+                    <div class="chart-container">
+                        <h3>需求交付柱状图</h3>
+                        <div id="delivery-chart" style="width: 100%; height: 400px;"></div>
+                    </div>
+                    <div class="chart-container">
+                        <h3>代码当量柱状图</h3>
+                        <div id="code-chart" style="width: 100%; height: 400px;"></div>
+                    </div>
+                `;
+                reportContent.innerHTML += chartContainers;
+
+                // 渲染饱和度图表
+                const saturationData = [{
+                    x: data.user_names,
+                    y: data.saturation,
+                    type: 'bar',
+                    marker: { color: 'rgb(54, 162, 235)' }
+                }];
+                const saturationLayout = {
+                    title: '人员饱和度分布',
+                    xaxis: { title: '人员名称' },
+                    yaxis: { title: '百分比', range: [0, 200] }
+                };
+                Plotly.newPlot('saturation-chart', saturationData, saturationLayout);
+
+                // 渲染需求交付图表
+                const deliveryData = [{
+                    x: data.user_names,
+                    y: data.delivery_count,
+                    type: 'bar',
+                    marker: { color: 'rgb(75, 192, 192)' }
+                }];
+                const deliveryLayout = {
+                    title: '人员需求交付数量',
+                    xaxis: { title: '人员名称' },
+                    yaxis: { title: '交付数量' }
+                };
+                Plotly.newPlot('delivery-chart', deliveryData, deliveryLayout);
+
+                // 渲染代码当量图表
+                const codeData = [{
+                    x: data.user_names,
+                    y: data.code_equivalent,
+                    type: 'bar',
+                    marker: { color: 'rgb(153, 102, 255)' }
+                }];
+                const codeLayout = {
+                    title: '人员代码当量',
+                    xaxis: { title: '人员名称' },
+                    yaxis: { title: '代码当量' }
+                };
+                Plotly.newPlot('code-chart', codeData, codeLayout);
+            })
+            .catch(error => {
+                loading.classList.add('hidden');
+                reportContent.innerHTML = `<div class="error-message">分析失败: ${error.message}</div>`;
+            });
+        });
+    </script>
+</body>
+</html>

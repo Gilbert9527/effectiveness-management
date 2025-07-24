@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>效能数据大屏</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .chart-container {
+            padding: 20px;
+            margin: 0 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: calc(100% - 40px); /* 修正：计算可用宽度 */
+            overflow-x: auto; /* 确保横向滚动 */
+            white-space: nowrap; /* 防止内容换行 */
+            min-height: 400px; /* 新增：设置最小高度 */
+        }
+        #saturationChart {
+            min-width: 600px; /* 新增：图表最小宽度 */
+            width: 100% !important; /* 强制宽度适应容器 */
+        }
+        .chart-container h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 18px;
+        }
+    </style>
+    <!-- 移除内嵌样式，使用与效能管理页面相同的外部样式 -->
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">贝壳集团</div>
+        <ul class="nav-links">
+            <li><a href="/">效能管理</a></li>
+            <li><a href="/quality">质量管理</a></li>
+            <li><a href="/settings">设置管理</a></li>
+            <li><a href="/dashboard" class="active">效能数据大屏</a></li>
+        </ul>
+    </nav>
+    
+    <main class="content">
+        <!-- 筛选条件区域 -->
+        <div class="filter-container">
+            <form class="filter-form">
+                <!-- 项目筛选 -->
+                <div class="filter-group">
+                    <label for="project-filter">项目筛选:</label>
+                    <select id="project-filter" name="project-filter">
+                        <option value="all">全部项目</option>
+                        <!-- 项目选项将通过JavaScript动态加载 -->
+                    </select>
+                </div>
+
+                <!-- 时间筛选 - 仿照效能管理页面结构 -->
+                <div class="filter-group">
+                    <label>时间筛选:</label>
+                    <div class="time-filter">
+                        <div class="radio-group">
+                            <input type="radio" id="time-month" name="time-type" value="month" checked>
+                            <label for="time-month">按月</label>
+                        </div>
+                        <div class="radio-group">
+                            <input type="radio" id="time-week" name="time-type" value="week">
+                            <label for="time-week">按自然周</label>
+                        </div>
+                        <select id="time-select" name="time-select">
+                            <!-- 选项将通过JavaScript动态生成 -->
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 用户名称 -->
+                <div class="filter-group">
+                    <label for="username-filter">用户名称:</label>
+                    <input type="text" id="username-filter" name="username-filter" placeholder="请输入用户名称">
+                </div>
+
+                <!-- 筛选按钮 - 使用与效能管理页面相同的类名 -->
+                <div class="filter-actions">
+                    <button type="button" class="btn filter-btn" id="filter-btn">筛选</button>
+                    <button type="button" class="btn reset-btn" id="reset-btn">重置</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 新增图表容器 -->
+        <div class="chart-container">
+            <h3>人员饱和度分布</h3>
+            <canvas id="saturationChart" height="300"></canvas>
+        </div>
+    </main>
+
+    <!-- 引入Chart.js库 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化项目筛选
+            initProjectFilter();
+            
+            // 初始化时间筛选
+            initTimeFilter();
+            
+            // 绑定筛选按钮事件
+            document.getElementById('filter-btn').addEventListener('click', applyFilters);
+            
+            // 绑定重置按钮事件
+            document.getElementById('reset-btn').addEventListener('click', resetFilters);
+        });
+
+        // 初始化项目筛选下拉框
+        function initProjectFilter() {
+            const projectSelect = document.getElementById('project-filter');
+            
+            // 从API获取项目列表（与项目管理页面一致）
+            fetch('/api/projects')
+                .then(response => response.json())
+                .then(projects => {
+                    projects.forEach(project => {
+                        const option = document.createElement('option');
+                        option.value = project.id;
+                        option.textContent = project.name;
+                        projectSelect.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('加载项目列表失败:', error);
+                    // 加载失败时添加默认项目选项
+                    const defaultOptions = ['项目A', '项目B', '项目C', '项目D'];
+                    defaultOptions.forEach(name => {
+                        const option = document.createElement('option');
+                        option.value = name;
+                        option.textContent = name;
+                        projectSelect.appendChild(option);
+                    });
+                });
+        }
+
+        // 初始化时间筛选
+        function initTimeFilter() {
+            // 初始化月份选项
+            generateMonthOptions();
+            
+            // 绑定时间类型切换事件
+            document.querySelectorAll('input[name="time-type"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.value === 'month') {
+                        generateMonthOptions();
+                    } else {
+                        generateWeekOptions();
+                    }
+                });
+            });
+        }
+
+        // 生成月份选项（1-12月）
+        function generateMonthOptions() {
+            const select = document.getElementById('time-select');
+            select.innerHTML = '';
+            
+            for (let month = 1; month <= 12; month++) {
+                const option = document.createElement('option');
+                option.value = `2025-${String(month).padStart(2, '0')}`;
+                option.textContent = `2025年${month}月`;
+                select.appendChild(option);
+            }
+        }
+
+        // 生成2025年自然周选项（7天为一周）
+        function generateWeekOptions() {
+            const select = document.getElementById('time-select');
+            select.innerHTML = '';
+            
+            // 2025年1月1日是星期三
+            const startDate = new Date(2025, 0, 1);
+            // 2025年12月31日是星期二
+            const endDate = new Date(2025, 11, 31);
+            
+            let currentDate = new Date(startDate);
+            let weekNumber = 1;
+            
+            // 找到第一周的开始（如果1月1日不是周一，则回退到上一个周一）
+            if (currentDate.getDay() !== 1) {
+                const diff = currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1;
+                currentDate.setDate(currentDate.getDate() - diff);
+            }
+            
+            while (currentDate <= endDate) {
+                const weekStart = new Date(currentDate);
+                const weekEnd = new Date(currentDate);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                
+                // 如果周末超过了年底，调整为年底
+                if (weekEnd > endDate) {
+                    weekEnd.setTime(endDate.getTime());
+                }
+                
+                // 格式化日期显示
+                const formatDate = (date) => {
+                    return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+                };
+                
+                const startStr = formatDate(weekStart);
+                const endStr = formatDate(weekEnd);
+                
+                // 创建选项
+                const option = document.createElement('option');
+                option.value = `2025-W${weekNumber}`;
+                option.textContent = `${startStr}~${endStr} 第${weekNumber}周`;
+                select.appendChild(option);
+                
+                // 移动到下一周
+                currentDate.setDate(currentDate.getDate() + 7);
+                weekNumber++;
+            }
+        }
+
+        // 应用筛选条件
+        function applyFilters() {
+            const filters = {
+                project: document.getElementById('project-filter').value,
+                timeType: document.querySelector('input[name="time-type"]:checked').value,
+                timeValue: document.getElementById('time-select').value,
+                username: document.getElementById('username-filter').value.trim()
+            };
+
+            console.log('应用筛选条件:', filters);
+            loadSaturationChart(filters); // 新增：加载饱和度图表
+        }
+
+        // 重置筛选条件
+        function resetFilters() {
+            // 现有重置代码保持不变
+            document.getElementById('project-filter').value = 'all';
+            
+            // 重置时间筛选为按月
+            document.getElementById('time-month').checked = true;
+            generateMonthOptions();
+            
+            // 重置用户名称输入框
+            document.getElementById('username-filter').value = '';
+            
+            console.log('筛选条件已重置');
+            alert('筛选条件已重置为默认状态');
+            loadSaturationChart({}); // 重置后加载默认数据
+        }
+
+        // 新增：将ISO周格式转换为日期范围
+        function getWeekDateRange(year, week) {
+            week = parseInt(week, 10);
+            if (isNaN(week)) return { start: '', end: '' };
+            
+            // 统一周计算逻辑：找到该年的第一个周一
+            const firstDayOfYear = new Date(year, 0, 1);
+            const dayOffset = firstDayOfYear.getDay() === 0 ? 6 : firstDayOfYear.getDay() - 1;
+            const firstMonday = new Date(firstDayOfYear);
+            firstMonday.setDate(firstDayOfYear.getDate() - dayOffset);
+            
+            // 计算目标周的起始日期
+            const targetWeekStart = new Date(firstMonday);
+            targetWeekStart.setDate(firstMonday.getDate() + (week - 1) * 7);
+            const targetWeekEnd = new Date(targetWeekStart);
+            targetWeekEnd.setDate(targetWeekStart.getDate() + 6);
+            
+            // 格式化日期为YYYY-MM-DD
+            return {
+                start: targetWeekStart.toLocaleDateString('en-CA'),
+                end: targetWeekEnd.toLocaleDateString('en-CA')
+            };
+        }
+
+        // 新增：加载饱和度图表数据并渲染
+        function loadSaturationChart(filters) {
+            // 构建查询参数
+            const params = new URLSearchParams();
+            if (filters.project && filters.project !== 'all') params.append('project_name', filters.project);
+            if (filters.username) params.append('person_name', filters.username);
+            if (filters.timeType === 'month') {
+                params.append('time_type', 'point');
+                params.append('time_point', filters.timeValue);
+            } else if (filters.timeType === 'week') {
+                // 周格式转换为开始和结束日期
+                const [year, week] = filters.timeValue.split('-W');
+                const dateRange = getWeekDateRange(year, week);
+                // 新增：验证日期范围
+                if (!dateRange.start || !dateRange.end) {
+                    alert('无效的周格式，请重新选择');
+                    return;
+                }
+                params.append('time_type', 'range');
+                params.append('start_date', dateRange.start);
+                params.append('end_date', dateRange.end);
+            }
+
+            const url = `/api/saturation-data?${params.toString()}`;
+            console.log('请求饱和度数据:', url);
+
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP错误: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('获取到的数据:', data); // 新增：调试日志
+                    if (!data || !data.length) {
+                        alert('没有找到符合条件的数据');
+                        // 清空图表
+                        if (window.saturationChartInstance) {
+                            window.saturationChartInstance.data.labels = [];
+                            window.saturationChartInstance.data.datasets[0].data = [];
+                            window.saturationChartInstance.update();
+                        }
+                        return;
+                    }
+                    renderSaturationChart(data);
+                })
+                .catch(error => {
+                    console.error('加载饱和度数据失败:', error);
+                    alert(`加载数据失败: ${error.message}\n请检查控制台获取详细信息`);
+                });
+        }
+
+        // 新增：渲染饱和度柱状图
+        function renderSaturationChart(data) {
+            // 提取人员名称和饱和度数据
+            const labels = data.map(item => item.user_name || '未知人员');
+            const values = data.map(item => parseFloat(item.saturation) || 0);
+
+            // 销毁已有图表
+            if (window.saturationChartInstance) {
+                window.saturationChartInstance.destroy();
+            }
+
+            // 创建新图表
+            const ctx = document.getElementById('saturationChart').getContext('2d');
+            window.saturationChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '饱和度 (%)',
+                        data: values,
+                        backgroundColor: 'rgba(66, 133, 244, 0.7)',
+                        borderColor: 'rgba(66, 133, 244, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: '饱和度'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '人员名称'
+                            },
+                            ticks: {
+                                maxRotation: 45, /* 新增：标签最大旋转角度 */
+                                minRotation: 45, /* 新增：标签最小旋转角度 */
+                                autoSkip: true,  /* 新增：自动跳过重叠标签 */
+                                maxTicksLimit: 10 /* 新增：最大显示标签数量 */
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `饱和度: ${context.raw.toFixed(2)}%`;
+                                }
+                            }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
